@@ -19,7 +19,7 @@ async def setup_database():
 
     # Create engine
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        settings.database_url_str,  # Use the string method
         echo=True,
     )
 

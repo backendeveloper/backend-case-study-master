@@ -11,7 +11,7 @@ from healthai.src.api.config import settings
 
 # Create database engine
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    str(settings.DATABASE_URL),  # PostgresDsn'yi string'e dönüştür
     echo=settings.DEBUG,
     future=True  # Use SQLAlchemy 2.0 style
 )

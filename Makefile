@@ -1,12 +1,15 @@
-.PHONY: setup db-up db-down migrate-healthai migrate-travelai run-healthai run-travelai run-all clean help
+.PHONY: setup db-up db-down setup-healthai setup-travelai migrate-healthai migrate-travelai run-healthai run-travelai run-all clean help init-migrations
 
 help:
 	@echo "Available commands:"
 	@echo "  make setup           - Create virtual environment and install dependencies"
 	@echo "  make db-up           - Start PostgreSQL database with Docker"
 	@echo "  make db-down         - Stop PostgreSQL database"
-	@echo "  make migrate-healthai - Setup HealthAI database"
-	@echo "  make migrate-travelai - Setup TravelAI database"
+	@echo "  make setup-healthai  - Setup HealthAI application"
+	@echo "  make setup-travelai  - Setup TravelAI application"
+	@echo "  make init-migrations - Initialize Alembic migrations for both applications"
+	@echo "  make migrate-healthai - Run database migrations for HealthAI"
+	@echo "  make migrate-travelai - Run database migrations for TravelAI"
 	@echo "  make run-healthai    - Run HealthAI application"
 	@echo "  make run-travelai    - Run TravelAI application"
 	@echo "  make run-all         - Run both applications (in background)"
@@ -30,25 +33,54 @@ db-down:
 	docker-compose down
 	@echo "PostgreSQL stopped"
 
-migrate-healthai: db-up
-	@echo "Setting up HealthAI database..."
+setup-healthai: db-up
+	@echo "Setting up HealthAI application..."
 	cd healthai && . ../venv/bin/activate && python setup_db.py
-	@echo "HealthAI database setup complete"
+	@echo "HealthAI application setup complete"
+
+setup-travelai: db-up
+	@echo "Setting up TravelAI application..."
+	cd travelai && . ../venv/bin/activate && python setup_db.py
+	@echo "TravelAI application setup complete"
+
+init-migrations: db-up
+	@echo "Initializing Alembic migrations..."
+
+	@echo "Setting up Alembic for HealthAI..."
+	mkdir -p healthai/migrations
+	cd healthai && . ../venv/bin/activate && \
+		alembic init migrations && \
+		sed -i'.bak' 's/sqlalchemy.url = driver:\/\/user:pass@localhost\/dbname/sqlalchemy.url = postgresql+asyncpg:\/\/postgres:postgres@localhost:5432\/healthai/' alembic.ini && \
+		rm -f alembic.ini.bak
+
+	@echo "Setting up Alembic for TravelAI..."
+	mkdir -p travelai/migrations
+	cd travelai && . ../venv/bin/activate && \
+		alembic init migrations && \
+		sed -i'.bak' 's/sqlalchemy.url = driver:\/\/user:pass@localhost\/dbname/sqlalchemy.url = postgresql+asyncpg:\/\/postgres:postgres@localhost:5432\/travelai/' alembic.ini && \
+		rm -f alembic.ini.bak
+
+	@echo "Alembic setup complete"
+
+migrate-healthai: db-up
+	@echo "Running HealthAI database migrations..."
+	cd healthai && . ../venv/bin/activate && alembic revision --autogenerate -m "Create ledger tables" && alembic upgrade head
+	@echo "HealthAI database migration complete"
 
 migrate-travelai: db-up
-	@echo "Setting up TravelAI database..."
-	cd travelai && . ../venv/bin/activate && python setup_db.py
-	@echo "TravelAI database setup complete"
+	@echo "Running TravelAI database migrations..."
+	cd travelai && . ../venv/bin/activate && alembic revision --autogenerate -m "Create ledger tables" && alembic upgrade head
+	@echo "TravelAI database migration complete"
 
-run-healthai: migrate-healthai
+run-healthai: setup-healthai
 	@echo "Starting HealthAI application..."
 	cd healthai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8000
 
-run-travelai: migrate-travelai
+run-travelai: setup-travelai
 	@echo "Starting TravelAI application..."
 	cd travelai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8001
 
-run-all: migrate-healthai migrate-travelai
+run-all: setup-healthai setup-travelai
 	@echo "Starting both applications..."
 	cd healthai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8000 & \
 	cd travelai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8001 &

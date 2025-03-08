@@ -1,7 +1,8 @@
 """
 Configuration for HealthAI application.
 """
-from pydantic import BaseSettings, PostgresDsn
+from pydantic_settings import BaseSettings
+from pydantic import PostgresDsn
 
 
 class Settings(BaseSettings):
@@ -12,9 +13,15 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     DATABASE_URL: PostgresDsn = "postgresql+asyncpg://postgres:postgres@localhost:5432/healthai"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8"
+    }
+
+    @property
+    def database_url_str(self) -> str:
+        """Return database URL as string for SQLAlchemy"""
+        return str(self.DATABASE_URL)
 
 
 # Create settings instance

@@ -1,4 +1,4 @@
-#!/Users/kaanuygur/Downloads/backend-case-study-master/venv/bin/python3.11
+#!/Users/kaanuygur/Downloads/backend-case-study-master/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

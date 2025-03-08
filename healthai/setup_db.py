@@ -17,9 +17,9 @@ async def setup_database():
     """
     print(f"Setting up database at {settings.DATABASE_URL}")
 
-    # Create engine
+    # Create engine - Use string representation of DATABASE_URL
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        settings.database_url_str,  # Use the string method
         echo=True,
     )
 

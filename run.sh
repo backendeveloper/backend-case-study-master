@@ -1,54 +1,94 @@
 #!/usr/bin/env bash
 
-# Hata ayıklama için
+# Enable error handling
 set -e
 
-# Sanal ortam oluştur ve bağımlılıkları yükle
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Helper functions
+function print_step() {
+    echo -e "${BLUE}==>${NC} $1"
+}
+
+function print_success() {
+    echo -e "${GREEN}==>${NC} $1"
+}
+
+function print_error() {
+    echo -e "${RED}==>${NC} $1"
+}
+
+# Create and activate virtual environment
 if [ ! -d "venv" ]; then
-    echo "Sanal ortam oluşturuluyor..."
-    python -m venv venv
+    print_step "Creating virtual environment..."
+    python3 -m venv venv
+    print_success "Virtual environment created"
 fi
 
-# Sanal ortamı aktif et
+# Activate virtual environment
+print_step "Activating virtual environment..."
 source venv/bin/activate
+print_success "Virtual environment activated"
 
-# Bağımlılıkları yükle
-echo "Bağımlılıklar yükleniyor..."
+# Install dependencies
+print_step "Installing dependencies..."
 pip install -e .
+print_success "Dependencies installed"
 
-# PostgreSQL veritabanlarını oluştur
-echo "Veritabanları oluşturuluyor..."
-createdb -U postgres healthai || echo "healthai veritabanı zaten var"
-createdb -U postgres travelai || echo "travelai veritabanı zaten var"
+# Start PostgreSQL with Docker
+print_step "Starting PostgreSQL with Docker..."
+chmod +x docker-entrypoint-initdb.d/create-multiple-databases.sh
+docker-compose up -d
+print_success "PostgreSQL started"
 
-# HealthAI için migrasyonları çalıştır
-echo "HealthAI migrasyonları çalıştırılıyor..."
+# Wait for PostgreSQL to be ready
+print_step "Waiting for PostgreSQL to be ready..."
+sleep 5
+print_success "PostgreSQL is ready"
+
+# Setup HealthAI database
+print_step "Setting up HealthAI database..."
 cd healthai
-alembic upgrade head
+python setup_db.py
 cd ..
+print_success "HealthAI database setup complete"
 
-# TravelAI için migrasyonları çalıştır
-# echo "TravelAI migrasyonları çalıştırılıyor..."
-# cd travelai
-# alembic upgrade head
-# cd ..
+# Setup TravelAI database
+print_step "Setting up TravelAI database..."
+cd travelai
+python setup_db.py
+cd ..
+print_success "TravelAI database setup complete"
 
-# HealthAI uygulamasını başlat
-echo "HealthAI uygulaması başlatılıyor..."
+# Start applications
+print_step "Starting applications..."
 cd healthai
 uvicorn src.main:app --reload --port 8000 &
+HEALTHAI_PID=$!
 cd ..
 
-# TravelAI uygulamasını başlat
-# echo "TravelAI uygulaması başlatılıyor..."
-# cd travelai
-# uvicorn src.main:app --reload --port 8001 &
-# cd ..
+cd travelai
+uvicorn src.main:app --reload --port 8001 &
+TRAVELAI_PID=$!
+cd ..
 
-echo "Uygulama çalışıyor:"
-echo "HealthAI: http://localhost:8000"
-echo "TravelAI: http://localhost:8001"
-echo "Durdurmak için Ctrl+C tuşlarına basın..."
+print_success "Applications started successfully!"
+echo -e "${GREEN}HealthAI:${NC} http://localhost:8000"
+echo -e "${GREEN}TravelAI:${NC} http://localhost:8001"
+echo -e "\nPress Ctrl+C to stop all applications"
 
-# Her iki uygulamanın da çalışmasını bekle
-wait
+# Handle cleanup on exit
+function cleanup() {
+    print_step "Stopping applications..."
+    kill -9 $HEALTHAI_PID $TRAVELAI_PID 2>/dev/null || true
+    print_success "Applications stopped"
+}
+
+trap cleanup EXIT
+
+# Wait for both processes
+wait $HEALTHAI_PID $TRAVELAI_PID

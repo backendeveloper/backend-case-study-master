@@ -11,8 +11,11 @@ LEDGER_OPERATION_CONFIG: Dict[str, int] = {
     "CREDIT_SPEND": -1,
     "CREDIT_ADD": 10,
 
-    # App-specific operations - These should be defined by each application
-    # but are included here for reference
+    # HealthAI specific operations
     "CONTENT_CREATION": -5,
     "CONTENT_ACCESS": 0,
+
+    # TravelAI specific operations
+    "BOOKING_REWARD": 5,
+    "LOYALTY_BONUS": 2,
 }

@@ -1,87 +1,132 @@
 # Shared Ledger System
 
-Bu proje, bir monorepo içindeki birden fazla uygulama için paylaşılan bir ledger sistemi sağlar.
+This monorepo contains a shared ledger system implemented for multiple applications, focusing on code reuse, type safety, and clean architecture.
 
-## Özellikler
+## Overview
 
-- Tüm uygulamalar için ortak Ledger operasyonlarını zorunlu kılan tip güvenliği
-- Merkezi implementasyon ile kod tekrarının önlenmesi
-- Uygulama özelinde genişletilebilir operasyonlar
-- FastAPI, SQLAlchemy 2.0, Pydantic ve PostgreSQL kullanımı
+The project uses a monorepo structure with a shared core module and multiple application-specific implementations. The ledger system tracks user credits across different applications while enforcing shared operations and maintaining type safety.
 
-## Gereksinimler
+## Features
+
+- Type-safe shared ledger operations across applications
+- Centralized implementation to prevent code duplication
+- Application-specific extensible operations
+- FastAPI, SQLAlchemy 2.0, Pydantic, and PostgreSQL integration
+- Docker-based database setup
+- Proper async database operations
+
+## Requirements
 
 - Python ≥ 3.10
+- Docker and Docker Compose
 - PostgreSQL
-- Docker (opsiyonel)
+- Make (optional, for using the Makefile commands)
 
-## Kurulum
+## Quick Start
 
-### Sanal Ortam Kurulumu
+### Using Make
 
 ```bash
-# Sanal ortam oluştur
-python -m venv venv
+# Setup virtual environment and install dependencies
+make setup
 
-# Sanal ortamı aktifleştir
-# Windows için:
-venv\Scripts\activate
-# Unix/MacOS için:
+# Start PostgreSQL with Docker
+make db-up
+
+# Setup both applications
+make setup-healthai
+make setup-travelai
+
+# Run both applications
+make run-all
+```
+
+### Using the Run Script
+
+```bash
+# Make the script executable
+chmod +x run.sh
+
+# Run the script
+./run.sh
+```
+
+### Manual Setup
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
 source venv/bin/activate
 
-# Bağımlılıkları yükle
+# Install dependencies
 pip install -e .
-```
 
-### Veritabanı Kurulumu
+# Start PostgreSQL with Docker
+chmod +x docker-entrypoint-initdb.d/create-multiple-databases.sh
+docker-compose up -d
 
-```bash
-# PostgreSQL veritabanlarını oluştur
-createdb -U postgres healthai
-createdb -U postgres travelai
-
-# Migrasyonları çalıştır
+# Setup HealthAI database
 cd healthai
-alembic upgrade head
+python setup_db.py
 cd ..
 
+# Setup TravelAI database
 cd travelai
-alembic upgrade head
+python setup_db.py
 cd ..
-```
 
-## Çalıştırma
-
-```bash
-# HealthAI uygulamasını çalıştır
+# Run HealthAI
 cd healthai
 uvicorn src.main:app --reload --port 8000
-
-# TravelAI uygulamasını çalıştır (başka bir terminal penceresinde)
+# In another terminal
 cd travelai
 uvicorn src.main:app --reload --port 8001
 ```
 
-Daha hızlı çalıştırmak için otomatik betik:
-
-```bash
-# Çalıştırma izni ver
-chmod +x run.sh
-
-# Çalıştır
-./run.sh
-```
-
-## API Kullanımı
-
-### Bakiye Sorgulama
+## Project Structure
 
 ```
+├── monorepo/                      # Shared core functionality
+│   ├── core/
+│   │   ├── db/                    # Database models and repositories
+│   │   │   ├── models.py          # Core SQLAlchemy models
+│   │   │   └── ledger_repository.py  # Database operations
+│   │   └── ledgers/               # Ledger business logic
+│   │       ├── services/          # Service layer
+│   │       │   └── base_ledger_service.py  # Core service logic
+│   │       ├── schemas.py         # Core enum definitions
+│   │       ├── pydantic_schemas.py  # Pydantic models
+│   │       └── config.py          # Operation value configuration
+├── healthai/                      # HealthAI application
+│   ├── src/
+│   │   ├── api/
+│   │   │   ├── ledgers/
+│   │   │   │   ├── models.py      # App-specific models
+│   │   │   │   ├── router.py      # API endpoints
+│   │   │   │   └── schemas.py     # App-specific operations
+│   │   │   ├── config.py          # App configuration
+│   │   │   └── db.py              # Database connection
+│   │   └── main.py                # Application entry point
+│   ├── migrations/                # Alembic migrations
+│   └── setup_db.py                # Database setup script
+├── travelai/                      # TravelAI application (similar structure)
+├── docker-compose.yml             # Docker Compose configuration
+├── Makefile                       # Build automation
+├── run.sh                         # Run script
+└── setup.py                       # Package setup
+```
+
+## API Usage
+
+### Get Balance
+
+```http
 GET /ledger/{owner_id}
 ```
 
-#### Cevap:
-
+Response:
 ```json
 {
   "owner_id": "user123",
@@ -90,14 +135,13 @@ GET /ledger/{owner_id}
 }
 ```
 
-### Yeni Ledger Kaydı Oluşturma
+### Create Ledger Entry
 
+```http
+POST /ledger/
 ```
-POST /ledger
-```
 
-#### İstek:
-
+Request:
 ```json
 {
   "owner_id": "user123",
@@ -106,8 +150,7 @@ POST /ledger
 }
 ```
 
-#### Cevap:
-
+Response:
 ```json
 {
   "id": 1,
@@ -119,53 +162,51 @@ POST /ledger
 }
 ```
 
-## Proje Yapısı
+## Operation Configuration
 
-```
-├── monorepo/
-│   ├── core/
-│   │   ├── db/
-│   │   │   ├── models.py               # Temel SQLAlchemy modelleri
-│   │   │   └── ledger_repository.py    # DB operasyonları için repository
-│   │   ├── ledgers/
-│   │   │   ├── services/
-│   │   │   │   └── base_ledger_service.py  # Temel ledger servisi
-│   │   │   ├── schemas.py              # Temel Enum tanımları
-│   │   │   ├── pydantic_schemas.py     # Temel Pydantic modelleri
-│   │   │   └── config.py               # Operasyon değerleri konfigürasyonu
-│   ├── __init__.py
-├── healthai/
-│   ├── src/
-│   │   ├── api/
-│   │   │   ├── ledgers/
-│   │   │   │   ├── models.py          # Uygulama-spesifik SQLAlchemy modeli
-│   │   │   │   ├── router.py          # API endpoint'leri
-│   │   │   │   └── schemas.py         # Uygulama-spesifik Enum'lar
-│   │   │   ├── config.py             # Uygulama konfigürasyonu
-│   │   │   └── db.py                 # DB bağlantısı
-│   │   ├── main.py                  # Uygulama giriş noktası
-│   │   └── __init__.py
-│   ├── migrations/                  # Alembic migrasyonları
-│   └── alembic.ini                  # Alembic konfigürasyonu
-├── travelai/
-│   ├── src/
-│   │   ├── api/
-│   │   │   ├── ledgers/
-│   │   │   │   ├── models.py
-│   │   │   │   ├── router.py
-│   │   │   │   └── schemas.py
-│   │   │   ├── config.py
-│   │   │   └── db.py
-│   │   ├── main.py
-│   │   └── __init__.py
-│   ├── migrations/
-│   └── alembic.ini
-├── requirements.txt
-├── setup.py
-└── README.md
+The system uses a configuration-based approach for operation values:
+
+```python
+LEDGER_OPERATION_CONFIG = {
+    # Shared operations
+    "DAILY_REWARD": 1,
+    "SIGNUP_CREDIT": 3,
+    "CREDIT_SPEND": -1,
+    "CREDIT_ADD": 10,
+
+    # App-specific operations
+    "CONTENT_CREATION": -5,
+    "CONTENT_ACCESS": 0,
+    "BOOKING_REWARD": 5,
+    "LOYALTY_BONUS": 2,
+}
 ```
 
-## Notlar
+## Type Safety
 
-- Operasyonlar için enum değerleri `monorepo/core/ledgers/config.py` dosyasında tanımlanmıştır
-- Her uygulama, tüm paylaşılan (shared) operasyonları implemente etmek zorundadır
+The system enforces type safety by requiring all applications to implement shared operations. This is accomplished through a custom metaclass that validates enum definitions:
+
+```python
+# This will fail at runtime
+class BadOperation(BaseLedgerOperation):
+    # Missing required shared operations!
+    CONTENT_CREATION = "CONTENT_CREATION"  
+
+# This will work
+class GoodOperation(BaseLedgerOperation):
+    # Required shared operations
+    DAILY_REWARD = "DAILY_REWARD"
+    SIGNUP_CREDIT = "SIGNUP_CREDIT"
+    CREDIT_SPEND = "CREDIT_SPEND"
+    CREDIT_ADD = "CREDIT_ADD"
+    
+    # App-specific operations
+    CONTENT_CREATION = "CONTENT_CREATION"
+```
+
+## Contributing
+
+1. Make sure all code has proper type hints
+2. Follow the established code style
+3. Add tests for new functionality
+4. Update documentation for API changes
