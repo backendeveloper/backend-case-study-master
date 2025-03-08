@@ -1,0 +1,3 @@
+APP_NAME=HealthAI
+DEBUG=true
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/healthai
