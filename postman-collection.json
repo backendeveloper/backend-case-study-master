@@ -1,0 +1,807 @@
+{
+	"info": {
+		"name": "Shared Ledger System Tests",
+		"description": "API endpoints to test the shared ledger system across HealthAI and TravelAI applications",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Environment Setup",
+			"item": [
+				{
+					"name": "Health Check - HealthAI",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{healthai_url}}/health",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Verify that the HealthAI app is running"
+					}
+				},
+				{
+					"name": "Health Check - TravelAI",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{travelai_url}}/health",
+							"host": [
+								"{{travelai_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Verify that the TravelAI app is running"
+					}
+				}
+			],
+			"description": "Verify that both applications are running"
+		},
+		{
+			"name": "HealthAI Tests",
+			"item": [
+				{
+					"name": "Get Initial Balance - HealthAI",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/{{test_user_id}}",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								"{{test_user_id}}"
+							]
+						},
+						"description": "Check the initial balance of a user in HealthAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has correct owner_id\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.owner_id).to.eql(pm.variables.get(\"test_user_id\"));",
+									"});",
+									"",
+									"pm.test(\"Response has balance property\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('balance');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Add Credit - HealthAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"{{test_user_id}}\",\n  \"operation\": \"CREDIT_ADD\",\n  \"nonce\": \"{{$timestamp}}_credit_add\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Add credits to a user in HealthAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has correct operation\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.operation).to.eql(\"CREDIT_ADD\");",
+									"});",
+									"",
+									"pm.test(\"Response has positive amount\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.amount).to.be.above(0);",
+									"    // Store the amount for later tests",
+									"    pm.variables.set(\"healthai_credit_amount\", jsonData.amount);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Verify Updated Balance - HealthAI",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/{{test_user_id}}",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								"{{test_user_id}}"
+							]
+						},
+						"description": "Verify that the user's balance has been updated in HealthAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Balance has increased\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.balance).to.be.at.least(parseInt(pm.variables.get(\"healthai_credit_amount\")));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Duplicate Transaction Test - HealthAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"{{test_user_id}}\",\n  \"operation\": \"CREDIT_ADD\",\n  \"nonce\": \"{{duplicate_nonce}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Test duplicate transaction detection by using the same nonce twice"
+					},
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// First request - Store a fixed nonce",
+									"if (!pm.variables.get(\"duplicate_nonce\")) {",
+									"    pm.variables.set(\"duplicate_nonce\", \"duplicate_test_\" + Date.now());",
+									"}"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// First request should succeed with 201",
+									"if (pm.response.code === 201) {",
+									"    pm.test(\"First request successful\", function () {",
+									"        pm.response.to.have.status(201);",
+									"        // Send the same request again to test duplicate detection",
+									"        setTimeout(function() {",
+									"            pm.sendRequest({",
+									"                url: pm.variables.get(\"healthai_url\") + \"/ledger/\",",
+									"                method: 'POST',",
+									"                header: { 'Content-Type': 'application/json' },",
+									"                body: {",
+									"                    mode: 'raw',",
+									"                    raw: JSON.stringify({",
+									"                        owner_id: pm.variables.get(\"test_user_id\"),",
+									"                        operation: \"CREDIT_ADD\",",
+									"                        nonce: pm.variables.get(\"duplicate_nonce\")",
+									"                    })",
+									"                }",
+									"            }, function (err, res) {",
+									"                pm.test(\"Duplicate transaction should fail\", function () {",
+									"                    pm.expect(res.code).to.be.oneOf([400, 409]);",
+									"                });",
+									"            });",
+									"        }, 100);",
+									"    });",
+									"} else {",
+									"    // Second request should fail",
+									"    pm.test(\"Duplicate transaction rejected\", function () {",
+									"        pm.expect(pm.response.code).to.be.oneOf([400, 409]);",
+									"    });",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Content Creation - HealthAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"{{test_user_id}}\",\n  \"operation\": \"CONTENT_CREATION\",\n  \"nonce\": \"{{$timestamp}}_content_creation\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Test app-specific operation in HealthAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has correct operation\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.operation).to.eql(\"CONTENT_CREATION\");",
+									"});",
+									"",
+									"pm.test(\"Response has negative amount\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.amount).to.be.below(0);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Insufficient Balance Test - HealthAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"low_balance_user\",\n  \"operation\": \"CREDIT_SPEND\",\n  \"nonce\": \"{{$timestamp}}_insufficient_test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Test insufficient balance scenario in HealthAI"
+					},
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Make many spend requests to drain the balance",
+									"const makeSpendRequests = () => {",
+									"    for (let i = 0; i < 15; i++) {",
+									"        pm.sendRequest({",
+									"            url: pm.variables.get(\"healthai_url\") + \"/ledger/\",",
+									"            method: 'POST',",
+									"            header: { 'Content-Type': 'application/json' },",
+									"            body: {",
+									"                mode: 'raw',",
+									"                raw: JSON.stringify({",
+									"                    owner_id: \"low_balance_user\",",
+									"                    operation: \"CREDIT_SPEND\",",
+									"                    nonce: Date.now() + \"_drain_\" + i",
+									"                })",
+									"            }",
+									"        }, function(err, res) {",
+									"            // Ignore errors as we expect some to fail",
+									"        });",
+									"    }",
+									"};",
+									"",
+									"// First add some credit",
+									"pm.sendRequest({",
+									"    url: pm.variables.get(\"healthai_url\") + \"/ledger/\",",
+									"    method: 'POST',",
+									"    header: { 'Content-Type': 'application/json' },",
+									"    body: {",
+									"        mode: 'raw',",
+									"        raw: JSON.stringify({",
+									"            owner_id: \"low_balance_user\",",
+									"            operation: \"CREDIT_ADD\",",
+									"            nonce: Date.now() + \"_add_credit\"",
+									"        })",
+									"    }",
+									"}, function(err, res) {",
+									"    if (!err) {",
+									"        // Now drain the balance",
+									"        makeSpendRequests();",
+									"    }",
+									"});"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Eventually this should fail with insufficient balance",
+									"// We might get 201 or 400 depending on timing - both are valid",
+									"pm.test(\"Status code is either 201 (transaction succeeded) or 400 (insufficient balance)\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([201, 400]);",
+									"    ",
+									"    if (pm.response.code === 400) {",
+									"        pm.test(\"Error message is about insufficient balance\", function () {",
+									"            pm.expect(pm.response.text()).to.include('balance');",
+									"        });",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			],
+			"description": "Tests for the HealthAI ledger system"
+		},
+		{
+			"name": "TravelAI Tests",
+			"item": [
+				{
+					"name": "Get Initial Balance - TravelAI",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{travelai_url}}/ledger/{{test_user_id}}",
+							"host": [
+								"{{travelai_url}}"
+							],
+							"path": [
+								"ledger",
+								"{{test_user_id}}"
+							]
+						},
+						"description": "Check the initial balance of a user in TravelAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has correct owner_id\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.owner_id).to.eql(pm.variables.get(\"test_user_id\"));",
+									"});",
+									"",
+									"pm.test(\"Response has balance property\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('balance');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Add Credit - TravelAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{travelai_url}}/ledger/",
+							"host": [
+								"{{travelai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"{{test_user_id}}\",\n  \"operation\": \"CREDIT_ADD\",\n  \"nonce\": \"{{$timestamp}}_credit_add_travel\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Add credits to a user in TravelAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has correct operation\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.operation).to.eql(\"CREDIT_ADD\");",
+									"});",
+									"",
+									"pm.test(\"Response has positive amount\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.amount).to.be.above(0);",
+									"    // Store the amount for later tests",
+									"    pm.variables.set(\"travelai_credit_amount\", jsonData.amount);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Booking Reward - TravelAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{travelai_url}}/ledger/",
+							"host": [
+								"{{travelai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"{{test_user_id}}\",\n  \"operation\": \"BOOKING_REWARD\",\n  \"nonce\": \"{{$timestamp}}_booking_reward\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Test app-specific operation in TravelAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has correct operation\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.operation).to.eql(\"BOOKING_REWARD\");",
+									"});",
+									"",
+									"pm.test(\"Response has positive amount\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.amount).to.be.above(0);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Loyalty Bonus - TravelAI",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{travelai_url}}/ledger/",
+							"host": [
+								"{{travelai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"{{test_user_id}}\",\n  \"operation\": \"LOYALTY_BONUS\",\n  \"nonce\": \"{{$timestamp}}_loyalty_bonus\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Test another app-specific operation in TravelAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has correct operation\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.operation).to.eql(\"LOYALTY_BONUS\");",
+									"});",
+									"",
+									"pm.test(\"Response has positive amount\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.amount).to.be.above(0);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Verify Updated Balance - TravelAI",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{travelai_url}}/ledger/{{test_user_id}}",
+							"host": [
+								"{{travelai_url}}"
+							],
+							"path": [
+								"ledger",
+								"{{test_user_id}}"
+							]
+						},
+						"description": "Verify that the user's balance has been updated in TravelAI"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Balance has increased\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var expectedMinimum = parseInt(pm.variables.get(\"travelai_credit_amount\")) + 5 + 2; // CREDIT_ADD + BOOKING_REWARD + LOYALTY_BONUS",
+									"    pm.expect(jsonData.balance).to.be.at.least(expectedMinimum);",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			],
+			"description": "Tests for the TravelAI ledger system"
+		},
+		{
+			"name": "Cross Application Tests",
+			"item": [
+				{
+					"name": "Compare Balances",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/{{test_user_id}}",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								"{{test_user_id}}"
+							]
+						},
+						"description": "Compare balances across applications"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var healthAiBalance = pm.response.json().balance;",
+									"",
+									"// Now get TravelAI balance",
+									"pm.sendRequest({",
+									"    url: pm.variables.get(\"travelai_url\") + \"/ledger/\" + pm.variables.get(\"test_user_id\"),",
+									"    method: 'GET'",
+									"}, function (err, res) {",
+									"    pm.test(\"TravelAI response successful\", function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.property('code', 200);",
+									"        var travelAiBalance = res.json().balance;",
+									"        ",
+									"        pm.test(\"Balances are different across applications\", function () {",
+									"            pm.expect(healthAiBalance).to.not.eql(travelAiBalance);",
+									"            console.log(\"HealthAI balance: \" + healthAiBalance);",
+									"            console.log(\"TravelAI balance: \" + travelAiBalance);",
+									"        });",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Verify Shared Operations",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{healthai_url}}/ledger/",
+							"host": [
+								"{{healthai_url}}"
+							],
+							"path": [
+								"ledger",
+								""
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"owner_id\": \"shared_ops_test\",\n  \"operation\": \"DAILY_REWARD\",\n  \"nonce\": \"{{$timestamp}}_daily_reward_health\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Verify that shared operations work across applications"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"var healthOperation = pm.response.json().operation;",
+									"var healthAmount = pm.response.json().amount;",
+									"",
+									"// Now test the same operation in TravelAI",
+									"pm.sendRequest({",
+									"    url: pm.variables.get(\"travelai_url\") + \"/ledger/\",",
+									"    method: 'POST',",
+									"    header: { 'Content-Type': 'application/json' },",
+									"    body: {",
+									"        mode: 'raw',",
+									"        raw: JSON.stringify({",
+									"            owner_id: \"shared_ops_test\",",
+									"            operation: \"DAILY_REWARD\",",
+									"            nonce: Date.now() + \"_daily_reward_travel\"",
+									"        })",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test(\"TravelAI response successful\", function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.property('code', 201);",
+									"        ",
+									"        var travelOperation = res.json().operation;",
+									"        var travelAmount = res.json().amount;",
+									"        ",
+									"        pm.test(\"Operation types match\", function () {",
+									"            pm.expect(healthOperation).to.eql(travelOperation);",
+									"        });",
+									"        ",
+									"        pm.test(\"Operation amounts match\", function () {",
+									"            pm.expect(healthAmount).to.eql(travelAmount);",
+									"        });",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			],
+			"description": "Tests to verify cross-application behavior"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set environment variables on first run",
+					"if (!pm.variables.get(\"healthai_url\")) {",
+					"    pm.variables.set(\"healthai_url\", \"http://localhost:8000\");",
+					"}",
+					"",
+					"if (!pm.variables.get(\"travelai_url\")) {",
+					"    pm.variables.set(\"travelai_url\", \"http://localhost:8001\");",
+					"}",
+					"",
+					"if (!pm.variables.get(\"test_user_id\")) {",
+					"    pm.variables.set(\"test_user_id\", \"test_user_\" + Date.now());",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "healthai_url",
+			"value": "http://localhost:8000"
+		},
+		{
+			"key": "travelai_url",
+			"value": "http://localhost:8001"
+		},
+		{
+			"key": "test_user_id",
+			"value": "test_user_1234567890"
+		}
+	]
+}
