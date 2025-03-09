@@ -14,6 +14,9 @@ from monorepo.core.db.models import BaseLedgerEntry
 from monorepo.core.ledgers.schemas import BaseLedgerOperation, TLedgerOperation
 from monorepo.core.ledgers.pydantic_schemas import LedgerBalanceResponse, LedgerEntryRead
 
+# Define type variables before using them
+TLedgerEntry = TypeVar('TLedgerEntry', bound=BaseLedgerEntry)
+
 
 class BaseLedgerService(Generic[TLedgerEntry, TLedgerOperation]):
     """

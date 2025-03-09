@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="shared-ledger-system",
     version="0.1.0",
-    packages=find_packages(),
+    packages=find_packages(include=['monorepo', 'monorepo.*', 'healthai', 'healthai.*', 'travelai', 'travelai.*']),
     install_requires=[
         "fastapi>=0.100.0",
         "uvicorn>=0.23.0",

@@ -2,6 +2,10 @@
 Database setup script for TravelAI.
 This script creates all tables and initializes the database.
 """
+import sys
+import os
+# Ana proje dizinini Python path'ine ekle
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import asyncio
 import sys
 from sqlalchemy.ext.asyncio import create_async_engine

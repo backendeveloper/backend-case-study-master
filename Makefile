@@ -74,16 +74,16 @@ migrate-travelai: db-up
 
 run-healthai: setup-healthai
 	@echo "Starting HealthAI application..."
-	cd healthai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8000
+	cd healthai && . ../venv/bin/activate && PYTHONPATH="$(PWD)" uvicorn src.main:app --reload --port 8000
 
 run-travelai: setup-travelai
 	@echo "Starting TravelAI application..."
-	cd travelai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8001
+	cd travelai && . ../venv/bin/activate && PYTHONPATH="$(PWD)" uvicorn src.main:app --reload --port 8001
 
 run-all: setup-healthai setup-travelai
 	@echo "Starting both applications..."
-	cd healthai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8000 & \
-	cd travelai && . ../venv/bin/activate && uvicorn src.main:app --reload --port 8001 &
+	cd healthai && . ../venv/bin/activate && PYTHONPATH="$(PWD)" uvicorn src.main:app --reload --port 8000 & \
+	cd travelai && . ../venv/bin/activate && PYTHONPATH="$(PWD)" uvicorn src.main:app --reload --port 8001 &
 	@echo "Applications running at:"
 	@echo "  - HealthAI: http://localhost:8000"
 	@echo "  - TravelAI: http://localhost:8001"
